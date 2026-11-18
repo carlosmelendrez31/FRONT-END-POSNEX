@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.angular/
+.DS_Store
+Thumbs.db
+**/bin/
+**/obj/
+**/Properties/launchSettings.local.json
+**/appsettings.*.local.json
+backend/Posnex.Api/appsettings.Development.json
+backend/Posnex.Api/.data-protection-keys/
+/backend/
