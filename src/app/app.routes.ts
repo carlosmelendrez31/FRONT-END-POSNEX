@@ -3,17 +3,29 @@ import { CanActivateFn, Router, Routes } from '@angular/router';
 import { DashboardPage, OnboardingPage, InventoryPage, PosPage, SalesPage, SimplePage } from './pages/pages.component';
 import { WelcomePage } from './pages/welcome.component';
 import { RestaurantDashboardPage, RestaurantMenuPage, RestaurantOrdersPage, RestaurantPosPage, WaitersPage } from './pages/restaurant-pages.component';
+import { LoginPage } from './pages/login.component';
+import { BusinessesPage } from './pages/businesses.component';
 import { PosnexStore } from './core/posnex-store';
+import { AuthApiService } from './core/auth-api.service';
+
+const requireGuest: CanActivateFn = () =>
+  inject(AuthApiService).isAuthenticated() ? inject(Router).parseUrl('/businesses') : true;
+
+const requireAuth: CanActivateFn = () =>
+  inject(AuthApiService).isAuthenticated() ? true : inject(Router).parseUrl('/login');
 
 const requireBusiness: CanActivateFn = () => {
-  const store = inject(PosnexStore);
-  return store.tenant().id ? true : inject(Router).parseUrl('/');
+  if (!inject(AuthApiService).isAuthenticated()) return inject(Router).parseUrl('/login');
+  return inject(PosnexStore).tenant().id ? true : inject(Router).parseUrl('/businesses');
 };
 
 export const routes: Routes = [
-  { path: '', component: WelcomePage },
-  { path: 'welcome', redirectTo: '' },
-  { path: 'onboarding', component: OnboardingPage },
+  { path: '', pathMatch: 'full', redirectTo: 'businesses' },
+  { path: 'login', component: LoginPage, canActivate: [requireGuest] },
+  { path: 'businesses', component: BusinessesPage, canActivate: [requireAuth] },
+  { path: 'new', component: WelcomePage, canActivate: [requireAuth] },
+  { path: 'welcome', redirectTo: 'new' },
+  { path: 'onboarding', component: OnboardingPage, canActivate: [requireAuth] },
   { path: 'dashboard', component: DashboardPage, canActivate: [requireBusiness] },
   { path: 'perfumeria', redirectTo: 'dashboard' },
   { path: 'restaurant/dashboard', component: RestaurantDashboardPage, canActivate: [requireBusiness] },

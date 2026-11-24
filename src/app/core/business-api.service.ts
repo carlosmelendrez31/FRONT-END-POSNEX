@@ -1,20 +1,21 @@
 import { Injectable } from '@angular/core';
-import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { AuthApiService } from './auth-api.service';
+import { API_BASE_URL } from './api.config';
 import { BusinessResponse, CreateBusinessRequest } from './business-api.models';
 
+/** Negocios del usuario autenticado. El token lo agrega authInterceptor y el servidor filtra por propietario. */
 @Injectable({ providedIn: 'root' })
 export class BusinessApiService {
-  private readonly baseUrl = 'http://localhost:5071/api/v1/businesses';
+  private readonly baseUrl = `${API_BASE_URL}/businesses`;
 
-  constructor(private readonly http: HttpClient, private readonly auth: AuthApiService) {}
+  constructor(private readonly http: HttpClient) {}
+
+  list(): Observable<BusinessResponse[]> {
+    return this.http.get<BusinessResponse[]>(this.baseUrl);
+  }
 
   create(request: CreateBusinessRequest): Observable<BusinessResponse> {
-    const token = this.auth.accessToken();
-    if (!token) throw new Error('Inicia sesión antes de registrar un negocio.');
-    return this.http.post<BusinessResponse>(this.baseUrl, request, {
-      headers: new HttpHeaders({ Authorization: `Bearer ${token}` })
-    });
+    return this.http.post<BusinessResponse>(this.baseUrl, request);
   }
 }

@@ -1,4 +1,5 @@
 import { Injectable, signal } from '@angular/core';
+import { BusinessResponse } from './business-api.models';
 
 export interface Product { id: string; name: string; brand: string; category: string; sku: string; barcode: string; cost: number; price: number; stock: number; minStock: number; image: string; }
 export interface Sale { id: string; date: string; customer: string; method: string; total: number; items: number; }
@@ -12,7 +13,10 @@ const emptyTenant: Tenant = {
   id: '', name: '', owner: '', email: '', trade: '', subtype: '',
   colors: { primary: '#171614', secondary: '#c5a66d', accent: '#8d7350' }, theme: 'light'
 };
-const legacyDemoIds = new Set(['cmfragances-demo', 'bistro-demo']);
+export interface BusinessPrefs { accent: string; theme: 'light'|'dark'; logo?: string; subtype?: string; }
+
+const ACTIVE_BUSINESS_KEY = 'posnex:active-business';
+const prefsKey = (businessId: string) => `posnex:business:${businessId}:prefs`;
 
 @Injectable()
 export class PosnexStore {
@@ -26,17 +30,16 @@ export class PosnexStore {
 
   constructor() {
     this.removeLocalDemoRecords();
-    if (!this.tenant().id) {
-      try { localStorage.removeItem('posnex:tenant'); } catch { /* Storage is optional. */ }
-    }
+    // El negocio activo ahora vive por pestaña junto con la sesión; se descarta la clave anterior.
+    try { localStorage.removeItem('posnex:tenant'); } catch { /* Storage is optional. */ }
   }
 
   private readTenant(): Tenant {
     try {
-      const saved = localStorage.getItem('posnex:tenant');
+      const saved = sessionStorage.getItem(ACTIVE_BUSINESS_KEY);
       if (!saved) return emptyTenant;
       const tenant = JSON.parse(saved) as Tenant;
-      return tenant?.id && !legacyDemoIds.has(tenant.id) ? tenant : emptyTenant;
+      return tenant?.id ? tenant : emptyTenant;
     } catch {
       return emptyTenant;
     }
@@ -55,9 +58,50 @@ export class PosnexStore {
     }
   }
 
+  /** Convierte un negocio de la API en el contexto de interfaz, completando lo que aún no persiste el servidor. */
+  tenantFromBusiness(business: BusinessResponse, accountEmail: string): Tenant {
+    const prefs = this.readBusinessPrefs(business.id);
+    const restaurant = business.type === 'Restaurant';
+    return {
+      id: business.id,
+      name: business.name,
+      owner: accountEmail.split('@')[0] || accountEmail,
+      email: accountEmail,
+      trade: restaurant ? 'Restaurante' : 'Comercio',
+      subtype: restaurant ? 'Restaurante' : prefs?.subtype || 'Comercio electrónico',
+      logo: prefs?.logo || business.logoUrl || undefined,
+      colors: { primary: business.primaryColor, secondary: business.secondaryColor, accent: prefs?.accent || emptyTenant.colors.accent },
+      theme: prefs?.theme || 'light'
+    };
+  }
+
+  /** Acento, tema, logotipo y subtipo todavía no se guardan en la API: se conservan en este dispositivo. */
+  saveBusinessPrefs(businessId: string, prefs: BusinessPrefs): void {
+    try { localStorage.setItem(prefsKey(businessId), JSON.stringify(prefs)); } catch { /* Storage is optional. */ }
+  }
+
+  private readBusinessPrefs(businessId: string): BusinessPrefs | null {
+    try {
+      const saved = localStorage.getItem(prefsKey(businessId));
+      return saved ? JSON.parse(saved) as BusinessPrefs : null;
+    } catch {
+      return null;
+    }
+  }
+
   saveTenant(tenant: Tenant): void {
     this.tenant.set(tenant);
-    localStorage.setItem('posnex:tenant', JSON.stringify(tenant));
+    try { sessionStorage.setItem(ACTIVE_BUSINESS_KEY, JSON.stringify(tenant)); } catch { /* Storage is optional. */ }
+    this.resetOperationalData();
+  }
+
+  clearTenant(): void {
+    this.tenant.set(emptyTenant);
+    try { sessionStorage.removeItem(ACTIVE_BUSINESS_KEY); } catch { /* Storage is optional. */ }
+    this.resetOperationalData();
+  }
+
+  private resetOperationalData(): void {
     this.products.set([]);
     this.sales.set([]);
     this.customers.set([]);
